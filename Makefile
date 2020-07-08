@@ -46,18 +46,20 @@ MODS =  $(MOD)module_mesh.mod  \
 
 all:	sobolev_disk   \
 	delta_test     \
-	S2_point_bound \
-	S2_point_data    \
-	S2_point_mnne
+	S2_point_data  \
+	S2_point_mnne  \
+	S2_point_bene  \
+	S2_point_mnwe  \
 
 clean:
 	rm ../obj/*
 	rm ../mod/*
 	rm $(BIN)sobolev_disk
 	rm $(BIN)delta_test
-	rm $(BIN)S2_point_bound
 	rm $(BIN)S2_point_data
 	rm $(BIN)S2_point_mnne
+	rm $(BIN)S2_point_bene
+	rm $(BIN)S2_point_mnwe
 
 
 
@@ -81,16 +83,6 @@ $(LOBJ)delta_test.o: delta_test.f90
 	$(MV) delta_test.o $(LOBJ) 
 
 
-S2_point_bound: $(BIN)S2_point_bound $(OBJS) $(UOBJ) $(RAYOBJ)
-$(BIN)S2_point_bound: $(OBJS) $(LOBJ)S2_point_bound.o
-	$(F95) $(FFLAGS) $(LOBJ)S2_point_bound.o $(OBJS) \
-	$(UOBJ) -l lapack  -o $(BIN)S2_point_bound
-
-$(LOBJ)S2_point_bound.o: S2_point_bound.f90 
-	$(F95) $(FFLAGS) S2_point_bound.f90 -c
-	$(MV) S2_point_bound.o $(LOBJ)
-
-
 S2_point_data: $(BIN)S2_point_data $(OBJS) $(UOBJ) $(RAYOBJ)
 $(BIN)S2_point_data: $(OBJS) $(LOBJ)S2_point_data.o
 	$(F95) $(FFLAGS) $(LOBJ)S2_point_data.o $(OBJS) \
@@ -109,6 +101,26 @@ $(BIN)S2_point_mnne: $(OBJS) $(LOBJ)S2_point_mnne.o
 $(LOBJ)S2_point_mnne.o: S2_point_mnne.f90 
 	$(F95) $(FFLAGS) S2_point_mnne.f90 -c
 	$(MV) S2_point_mnne.o $(LOBJ)
+
+
+S2_point_bene: $(BIN)S2_point_bene $(OBJS) $(UOBJ) $(RAYOBJ)
+$(BIN)S2_point_bene: $(OBJS) $(LOBJ)S2_point_bene.o
+	$(F95) $(FFLAGS) $(LOBJ)S2_point_bene.o $(OBJS) \
+	$(UOBJ) -l lapack  -o $(BIN)S2_point_bene
+
+$(LOBJ)S2_point_bene.o: S2_point_bene.f90 
+	$(F95) $(FFLAGS) S2_point_bene.f90 -c
+	$(MV) S2_point_bene.o $(LOBJ)
+
+
+S2_point_mnwe: $(BIN)S2_point_mnwe $(OBJS) $(UOBJ) $(RAYOBJ)
+$(BIN)S2_point_mnwe: $(OBJS) $(LOBJ)S2_point_mnwe.o
+	$(F95) $(FFLAGS) $(LOBJ)S2_point_mnwe.o $(OBJS) \
+	$(UOBJ) -l lapack  -o $(BIN)S2_point_mnwe
+
+$(LOBJ)S2_point_mnwe.o: S2_point_mnwe.f90 
+	$(F95) $(FFLAGS) S2_point_mnwe.f90 -c
+	$(MV) S2_point_mnwe.o $(LOBJ)
 
 
 $(OBJS): $(SRCS) $(UOBJ)	

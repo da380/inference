@@ -10,7 +10,9 @@ module module_S2_point
   
   real(dp), save :: s_S2_point
   real(dp), save :: mu_S2_point
-  
+  real(dp), save :: ss_S2_point
+  real(dp), save :: eta_S2_point
+
   real(dp), dimension(:,:), allocatable, save :: x_S2_point
   real(dp), dimension(:,:), allocatable, save :: v_S2_point
   real(dp), dimension(:), allocatable, save :: up_S2_point
@@ -214,7 +216,7 @@ contains
   end subroutine adjoint_point_operator_S2
 
 
-  subroutine point_misfit_S2(u,J,dJ)
+  subroutine point_misfit_ne_S2(u,J,dJ)
     use nrtype
     implicit none
     real(dp), dimension(:), intent(in) :: u
@@ -229,61 +231,59 @@ contains
     J = dot_product(v,v)
 
     if(present(dJ)) then
-       call adjoint_point_operator_S2(2.0_dp*v,dJ)
-       
+       call adjoint_point_operator_S2(2.0_dp*v,dJ)       
     end if
     
 
     return
-  end subroutine point_misfit_S2
+  end subroutine point_misfit_ne_S2
 
 
-  subroutine bg_point_misfit_S2(vp,J,dJ)
+  subroutine point_misfit_we_S2(u,J,dJ)
     use nrtype
     implicit none
-    real(dp), dimension(:), intent(in) :: vp
+    real(dp), dimension(:), intent(in) :: u
     real(dp), intent(out) :: J
     real(dp), dimension(:), intent(out), optional :: dJ
+    
+    real(dp) :: un2
+    real(dp), dimension(m_S2_point) :: v,vt
 
-    real(dp), dimension(n_S2_point) :: u
-
-
-    call adjoint_point_operator_S2(vp,u)
-    u = u-up_S2_point
-
-    call sobolev_product_S2(u,u,J)
+    call sobolev_product_S2(u,u,un2)
+    call point_operator_S2(u,v)
+    v = v_S2_point(:,1) - v
+    vt = v/v_S2_point(:,2)**2
+    J = 0.5_dp*dot_product(vt,v)    
+    J = 0.5_dp*un2 + eta_S2_point*(J-ss_S2_point)
+    
     
     if(present(dJ)) then
-       call point_operator_S2(2.0_dp*u,dJ)
+       call adjoint_point_operator_S2(vt,dJ)
+       dJ = u - eta_S2_point*dJ
     end if
     
+
     return
-  end subroutine bg_point_misfit_S2
+  end subroutine point_misfit_we_S2
 
 
-    subroutine gh_point_misfit_S2(vp,J,dJ)
+  subroutine point_misfit_we_con_S2(u,Jc)
     use nrtype
     implicit none
-    real(dp), dimension(:), intent(in) :: vp
-    real(dp), intent(out) :: J
-    real(dp), dimension(:), intent(out), optional :: dJ
-
-    integer(i4b) :: l,m
-    real(dp), dimension(n_S2_point) :: u,uq
+    real(dp), dimension(:), intent(in) :: u
+    real(dp), intent(out) :: Jc
+   
+    real(dp), dimension(m_S2_point) :: v,vt
 
 
-    call adjoint_point_operator_S2(vp,u)
-    u = u-up_S2_point
-    call covariance_operator_S2(u,uq)
+    call point_operator_S2(u,v)
+    v = v_S2_point(:,1) - v
+    vt = v/v_S2_point(:,2)**2
+    Jc = 0.5_dp*dot_product(vt,v)-ss_S2_point
 
-    call sobolev_product_S2(uq,u,J)
-    
-    if(present(dJ)) then
-       call point_operator_S2(2.0_dp*uq,dJ)
-    end if
-    
     return
-  end subroutine gh_point_misfit_S2
+  end subroutine point_misfit_we_con_S2
+
 
   subroutine covariance_operator_S2(u,uq)
     use nrtype
@@ -1105,6 +1105,63 @@ contains
 
     return
   end subroutine point_correlation_S2
+
+
+  subroutine gaussian_confidence_set(n,alpha,ss)
+    use nrtype
+    use ran_state
+    implicit none
+    integer(i4b), intent(in) :: n
+    real(dp), intent(in) :: alpha
+    real(dp), intent(out) :: ss
+
+    integer(i4b), parameter :: maxit = 100
+    integer(i4b), parameter :: nsamp = 100000
+    integer(i4b) :: isamp,i,it
+    real(dp) :: nll,err,ss1,ss2,p,ran
+    real(dp), dimension(nsamp) :: samp
+
+    ! sample from the distribution
+    do isamp = 1,nsamp
+       nll = 0.0_dp
+       do i = 1,n
+          call gasdev(ran)
+          nll = nll + 0.5_dp*ran**2
+       end do
+       samp(isamp) = nll     
+    end do
+
+    ! the value for s
+    err = alpha*0.0001_dp
+    ss1 = 0.0_dp
+    ss2 = maxval(samp)
+    do it = 1,maxit       
+       ss = 0.5_dp*(ss1+ss2)
+       p = ecdf(ss,samp)
+       if(abs(1.0_dp-alpha-p) <= err) exit       
+       if( p < 1.0_dp-alpha) ss1 = ss
+       if( p > 1.0_dp-alpha) ss2 = ss
+       if(it == maxit) stop 'gaussian_confidence_set: no convergence'
+    end do
+    
+
+    return
+  end subroutine gaussian_confidence_set
+
+  
+  function ecdf(x,samp)
+    real(dp) :: ecdf
+    real(dp), intent(in) :: x
+    real(dp), dimension(:), intent(in) :: samp
+    integer(i4b) :: i,n
+    n = size(samp)
+    ecdf = 0.0_dp
+    do i = 1,n
+       if(samp(i) <= x) ecdf = ecdf + 1.0_dp/n
+    end do
+    
+    return
+  end function ecdf
 
   
 end module module_S2_point

@@ -6,17 +6,16 @@ program S2_point_data
   use ran_state
   use module_gsht
   use module_interp
-  use module_opt
   use module_crust
   implicit none
   
 
-  character(len = 256) :: efile,pref
+  character(len = 256) :: efile,pref,string
   
-  integer(i4b) :: np,lmax,io,l,m,i,nth,lmin,nsamp
+  integer(i4b) :: np,lmax,io,l,m,i,nth,lmin,nsamp,narg,aopt
 
   real(dp) :: sigma1,sigma2,ran,pow,t,lam,un,up,alpha, &
-              th,dth,cor
+              th,dth,cor,aval
   
   real(dp), dimension(:,:), allocatable :: point_loc
   real(dp), dimension(:,:), allocatable :: point_dat
@@ -25,7 +24,43 @@ program S2_point_data
   real(dp), dimension(:), allocatable :: v
   real(dp), dimension(:), allocatable :: ulm
 
-    
+
+
+  !----------------------------------------------------!
+  !                    get arguments                   !
+  !----------------------------------------------------!
+
+  narg = command_argument_count()
+  if(narg == 0 .or. narg /= 12) then
+     print *, '[lmin] [lmax] [s] [mu] [t] [lam] [aopt] [aval] [nsamp] [npoint] [sigma1] [sigma2] '
+     stop
+  end if
+  call get_command_argument(1,string)
+  read(string,*) lmin
+  call get_command_argument(2,string)
+  read(string,*) lmax
+  call get_command_argument(3,string)
+  read(string,*) s_S2_point
+  call get_command_argument(4,string)
+  read(string,*) mu_S2_point
+  call get_command_argument(5,string)
+  read(string,*) t
+  call get_command_argument(6,string)
+  read(string,*) lam
+  call get_command_argument(7,string)
+  read(string,*) aopt
+  call get_command_argument(8,string)
+  read(string,*) aval
+  call get_command_argument(9,string)
+  read(string,*) nsamp
+  call get_command_argument(10,string)
+  read(string,*) m_S2_point
+  call get_command_argument(11,string)
+  read(string,*) sigma1
+  call get_command_argument(12,string)
+  read(string,*) sigma2
+
+  
 
   !====================================================!
   !          set the model and synthetic data          !
@@ -33,22 +68,15 @@ program S2_point_data
 
 
   ! set up the GSHT routines
-  lmin = 0
-  lmax = 64
   call setup_gsht(lmax = lmax,nmax = 0)
   
   ! set up random numbers
   call setup_random()
 
-  ! set the sobolev parameters
-  s_S2_point =  2.0_dp
-  mu_S2_point = 0.2_dp
-
   ! set up the crustal model
   call get_crust
 
   ! set the point locations
-  m_S2_point = 250
   call random_locations_topo(m_S2_point,point_loc,sign = -1)
   allocate(x_S2_point(m_S2_point,2))
   x_S2_point(:,1) = (90.0_dp-point_loc(:,1))*deg2rad
@@ -68,15 +96,21 @@ program S2_point_data
 
 
   ! make random model
-  t = 2.5_dp
-  lam = 0.1_dp
-  alpha = 1.0_dp
-  un = 1.0_dp
-  up = 1.0_dp
+  if(aopt == 1) then     
+     alpha = aval
+  else if(aopt == 2) then
+     un = aval
+  else if(aopt == 3) then
+     up = aval
+  else
+     stop 'S2_point_data: bad input for aopt'
+  end if
   allocate(qq_S2_point(lmax+1))  
   call covariance_parm(lmin,lmax,alpha,t,lam,qq_S2_point,up = up)
   call random_model(lmin,lmax,qq_S2_point,u)
+  call  sobolev_product_S2(u,u,un)
 
+  
   ! write out the two-point correlation function
   nth = 180
   dth = pi_d/(nth-1)
@@ -120,9 +154,7 @@ program S2_point_data
   allocate(v(m_S2_point))
   call point_operator_S2(u,v_S2_point(:,1))
   
-  ! set the standard deviations
-  sigma1 = 0.00_dp
-  sigma2 = 0.00_dp
+  ! set the standard deviations  
   do i = 1,m_S2_point
      call random_number(ran)     
      v_S2_point(i,2) =  ran*sigma1+(1.0_dp-ran)*sigma2
@@ -142,7 +174,6 @@ program S2_point_data
 
   
   ! sample from the model distribution
-  call get_integer(' number of samples = ',nsamp)
   if(nsamp > 0) then
      open(newunit = io,file='syn.mod.samp')
      do i = 1,nsamp
